@@ -26,12 +26,11 @@ def check_password():
 
 # 確保這兩行前面完全「沒有」任何空格，必須靠左對齊
 if check_password():
-# 3. 初始化 Gemini
-# 直接把金鑰貼在這裡，跳過 st.secrets
-genai.configure(api_key="AIzaSyCZgPL5WNTL1uL0qLROY6qAsY8f-2Sr3gk")
-
-# 確保模型名稱完全正確，不帶 models/ 前綴
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 3. 初始化 Gemini (直接寫入金鑰，解決 Secrets 讀取不到的問題)
+    genai.configure(api_key="AIzaSyCZgPL5WNTL1uL0qLROY6qAsY8f-2Sr3gk")
+    
+    # 確保模型名稱完全正確
+    model = genai.GenerativeModel('gemini-1.5-flash')
     # 這裡開始才是 App 的主內容，縮排必須與上面的 genai 一致
     st.title("🚀 私人 AI 股市助理")
 
@@ -90,6 +89,7 @@ model = genai.GenerativeModel('gemini-1.5-flash')
         if st.button("登出"):
             st.session_state["authenticated"] = False
             st.rerun()
+
 
 
 
