@@ -28,7 +28,7 @@ def check_password():
 if check_password():
 # 3. 初始化 Gemini
    
-    genai.configure(api_key="AIzaSyCZgPL5WNTL1uL0qLR0Y6qAsY8f-2Sr3gk")
+    genai.configure(api_key="AIzaSyCZgPL5WNTL1uLOqLROY6qAsY8f-2Sr3gk")
     # 這裡使用「最原始」的宣告方式，能避開 SDK 的路徑錯誤
     model = genai.GenerativeModel('gemini-1.5-flash')
     
@@ -90,6 +90,7 @@ if check_password():
         if st.button("登出"):
             st.session_state["authenticated"] = False
             st.rerun()
+
 
 
 
