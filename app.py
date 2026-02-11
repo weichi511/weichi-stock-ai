@@ -6,7 +6,7 @@ import pandas as pd
 # 1. 頁面基本設定
 st.set_page_config(page_title="My AI Stock", layout="centered")
 
-# 2. 安全驗證 (簡單密碼鎖)
+# 2. 安全驗證函數
 def check_password():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
@@ -15,7 +15,7 @@ def check_password():
         st.title("🔒 身份驗證")
         pwd = st.text_input("請輸入您的存取密碼", type="password")
         if st.button("登入"):
-            # 您可以在 Secrets 設定一個自訂密碼，例如 MY_APP_PWD
+            # 優先讀取 Secrets 裡的密碼，若無則預設 hello2026
             if pwd == st.secrets.get("MY_APP_PWD", "hello2026"): 
                 st.session_state["authenticated"] = True
                 st.rerun()
@@ -24,16 +24,18 @@ def check_password():
         return False
     return True
 
+# 3. 主程式執行邏輯
+if check_password():
+    # --- 這裡所有的程式碼都必須縮排 (前面有 4 或 8 個空格) ---
+    
+    # 初始化 Gemini
+    # 直接寫入金鑰確保讀取成功
+    genai.configure(api_key="AIzaSyDgFA-sSv3GqcqSEPhCg15TVGjp_5P2SGM")
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
-    if check_password():
-        # 3. 初始化 Gemini (確保前面有 8 個空格)
-        genai.configure(api_key="AIzaSyDgFA-sSv3GqcqSEPhCg15TVGjp_5P2SGM")
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-    # 這裡開始才是 App 的主內容，縮排必須與上面的 genai 一致
     st.title("🚀 私人 AI 股市助理")
 
-    # 4. 輸入區 (置頂)
+    # 4. 輸入區
     col1, col2 = st.columns([3, 1])
     with col1:
         target_stock = st.text_input("輸入代號", value="2330.TW").upper()
@@ -45,20 +47,18 @@ def check_password():
             try:
                 # 抓取數據
                 stock = yf.Ticker(target_stock)
-                df = stock.history(period="3mo") # 抓三個月數據
+                df = stock.history(period="3mo")
                 info = stock.info
 
                 if df.empty:
                     st.error("找不到該股票數據，請檢查代號是否正確。")
                 else:
-                    # 分頁顯示 (適合手機切換)
                     tab1, tab2 = st.tabs(["🤖 AI 分析", "📊 數據指標"])
 
+                    current_p = df['Close'].iloc[-1]
+                    price_change = ((current_p - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
+
                     with tab1:
-                        # 準備給 Gemini 的資料包
-                        current_p = df['Close'].iloc[-1]
-                        price_change = ((current_p - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
-                        
                         prompt = f"""
                         你是專業分析師。數據如下：
                         股票: {info.get('longName', target_stock)}
@@ -68,7 +68,6 @@ def check_password():
                         近期新聞摘要: {stock.news[:3] if stock.news else '無'}
                         請提供：1.技術面簡評 2.投資建議(短/中線)。(繁體中文)
                         """
-                        
                         response = model.generate_content(prompt)
                         st.markdown(f"### Gemini 觀點\n{response.text}")
 
@@ -82,25 +81,9 @@ def check_password():
             except Exception as e:
                 st.error(f"發生錯誤: {e}")
 
-    # 5. 側邊欄：登出與資訊
+    # 5. 側邊欄：登出
     with st.sidebar:
         st.write(f"當前使用者：已授權")
         if st.button("登出"):
             st.session_state["authenticated"] = False
             st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
