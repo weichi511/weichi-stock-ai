@@ -26,8 +26,17 @@ def check_password():
 
 # 確保這兩行前面完全「沒有」任何空格，必須靠左對齊
 if check_password():
+  # 3. 初始化 Gemini
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # 嘗試使用三種不同的模型名稱，只要有一個成功就行
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except:
+        try:
+            model = genai.GenerativeModel('gemini-pro')
+        except:
+            model = genai.GenerativeModel('models/gemini-pro')
     
     # 這裡開始才是 App 的主內容，縮排必須與上面的 genai 一致
     st.title("🚀 私人 AI 股市助理")
@@ -87,6 +96,7 @@ if check_password():
         if st.button("登出"):
             st.session_state["authenticated"] = False
             st.rerun()
+
 
 
 
