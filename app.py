@@ -27,7 +27,7 @@ def check_password():
 # 確保這兩行前面完全「沒有」任何空格，必須靠左對齊
 if check_password():
 # 3. 初始化 Gemini (直接寫入金鑰，解決 Secrets 讀取不到的問題)
-    genai.configure(api_key="AIzaSyCZgPL5WNTL1uL0qLROY6qAsY8f-2Sr3gk")
+    genai.configure(api_key="AIzaSyDgFA-sSv3GqcqSEPhCg15TVGjp_5P2SGM")
     
     # 確保模型名稱完全正確
     model = genai.GenerativeModel('gemini-1.5-flash')
@@ -89,6 +89,7 @@ if check_password():
         if st.button("登出"):
             st.session_state["authenticated"] = False
             st.rerun()
+
 
 
 
