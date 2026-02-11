@@ -27,7 +27,7 @@ def check_password():
 if check_password():
     # 3. 初始化 Gemini
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-pro')
 
     st.title("🚀 私人 AI 股市助理")
 
@@ -86,4 +86,5 @@ if check_password():
         if st.button("登出"):
             st.session_state["authenticated"] = False
             st.rerun()
+
 
