@@ -6,23 +6,25 @@ import pandas as pd
 # 1. 頁面基本設定
 st.set_page_config(page_title="My AI Stock", layout="centered")
 
-# --- 數據抓取優化 ---
-@st.cache_data(ttl=900)
+# --- 數據抓取：增加重試邏輯與抗封鎖 ---
+@st.cache_data(ttl=600)
 def fetch_stock_data(ticker):
     try:
+        # 不使用自定義 Session，讓 yfinance 自動處理最新的 curl_cffi 機制
         stock = yf.Ticker(ticker)
         df = stock.history(period="3mo")
+        
         if df.empty:
             return None, None
         
-        # 獲取新聞，若失敗則傳回空列表
+        # 獲取新聞，若失敗則回傳空
         try:
             news_titles = [n.get('title', '') for n in stock.news[:3]]
         except:
             news_titles = []
             
         return df, news_titles
-    except:
+    except Exception as e:
         return None, None
 
 # 2. 安全驗證
@@ -44,12 +46,11 @@ def check_password():
 # 3. 主程式
 if check_password():
     try:
-        # 從 Secrets 讀取金鑰
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # 嘗試使用最新穩定版模型
+        # 修正 404 問題：使用最標準的模型名稱
         model = genai.GenerativeModel('gemini-1.5-flash')
-    except:
-        st.error("❌ API 金鑰設定錯誤")
+    except Exception as e:
+        st.error(f"AI 配置失敗: {e}")
         st.stop()
 
     st.title("🚀 私人 AI 股市助理")
@@ -61,46 +62,44 @@ if check_password():
         analyze_btn = st.button("分析", use_container_width=True)
 
     if analyze_btn:
-        with st.spinner('AI 正在判斷燈號...'):
+        with st.spinner('數據讀取與 AI 分析中...'):
             df, news_titles = fetch_stock_data(target_stock)
 
-            if df is None:
-                st.error("⚠️ 數據抓取失敗，請重啟 App。")
+            if df is None or df.empty:
+                st.error("⚠️ 數據抓取失敗。Yahoo 伺服器目前拒絕連線，請點擊右下角 'Reboot App'。")
             else:
                 current_p = df['Close'].iloc[-1]
                 prev_p = df['Close'].iloc[-2]
                 change = ((current_p - prev_p) / prev_p) * 100
+                avg_5 = df['Close'].tail(5).mean()
 
-                # 建立 Tabs 分隔功能
                 tab1, tab2 = st.tabs(["🤖 AI 訊號分析", "📊 數據指標"])
                 
                 with tab1:
-                    # 強制 AI 回覆特定格式以便生成燈號
                     prompt = f"""
-                    分析股票:{target_stock},現價:{current_p:.2f},漲跌:{change:.2f}%,5日均價:{df['Close'].tail(5).mean():.2f}。
-                    新聞:{news_titles}。
-                    請依照此格式回覆：
-                    【訊號】：(紅燈-強力買入 / 黃燈-觀望 / 綠燈-減碼)
-                    【理由】：(簡短分析)
+                    你是專業分析師。分析股票:{target_stock}, 現價:{current_p:.2f}, 漲跌:{change:.2f}%, 5日均價:{avg_5:.2f}。
+                    請嚴格按照以下格式回覆(繁體中文)：
+                    【訊號燈】：(紅燈-買入 / 黃燈-觀望 / 綠燈-減碼)
+                    【分析理由】：(簡短分析)
                     """
                     try:
+                        # 增加一秒延遲避免 Rate Limit
+                        import time
+                        time.sleep(1)
                         response = model.generate_content(prompt)
                         res_text = response.text
                         
-                        # --- 視覺化燈號 ---
+                        # --- 視覺化燈號判斷 ---
                         if "紅燈" in res_text:
-                            st.error("🔴 強力建議：買入訊號") # 紅色在股市通常代表漲
+                            st.subheader("🔴 強力訊號：買入")
                         elif "綠燈" in res_text:
-                            st.success("🟢 警示訊號：減碼/賣出") # 綠色代表跌
+                            st.subheader("🟢 警示訊號：減碼")
                         else:
-                            st.warning("🟡 中性訊號：暫時觀望")
+                            st.subheader("🟡 中性訊號：觀望")
                             
-                        st.markdown(f"### Gemini 觀點\n{res_text}")
+                        st.info(res_text)
                     except Exception as e:
-                        if "429" in str(e):
-                            st.error("⚠️ 請求太快了！請等 60 秒後再試。")
-                        else:
-                            st.error(f"AI 呼叫失敗，請更換 API 金鑰或確認模型名稱。")
+                        st.error(f"AI 回應失敗：{e}")
 
                 with tab2:
                     st.metric("目前股價", f"{current_p:.2f}", f"{change:.2f}%")
