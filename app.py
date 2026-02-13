@@ -76,7 +76,13 @@ def check_password():
 if check_password():
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 嘗試使用更完整的模型名稱，並加入安全處理
+try:
+    # 這裡將名稱改為 'models/gemini-1.5-flash' 有助於解決 404 找不到模型的問題
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
+except Exception:
+    # 備案名稱
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
     except Exception as e:
         st.error(f"AI 配置失敗: {e}")
         st.stop()
@@ -115,3 +121,4 @@ if check_password():
                 with tab2:
                     st.metric(f"{target_stock} 目前股價", f"{current_p:.2f}", f"{change:.2f}%")
                     st.line_chart(df['Close'])
+
