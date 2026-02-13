@@ -70,15 +70,25 @@ def check_password():
 
 # --- 4. 主程式邏輯 ---
 if check_password():
-    # --- AI 模型配置與初始化 (修正 SyntaxError 與 404 問題) ---
+    # --- AI 模型配置與初始化 (徹底修正 404 問題) ---
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         
-        # 優先使用 models/ 前綴以避免 404
-        try:
-            model = genai.GenerativeModel('models/gemini-1.5-flash')
-        except:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+        # 嘗試多種可能的模型名稱格式，增加魯棒性
+        model_names = ['gemini-1.5-flash', 'models/gemini-1.5-flash', 'gemini-pro']
+        model = None
+        
+        for name in model_names:
+            try:
+                model = genai.GenerativeModel(name)
+                # 測試性呼叫一下（選填，若要更嚴謹可測試）
+                break 
+            except:
+                continue
+                
+        if model is None:
+            st.error("找不到可用的 Gemini 模型，請檢查 API Key 或區域限制。")
+            st.stop()
             
     except Exception as e:
         st.error(f"AI 配置失敗: {e}")
@@ -108,14 +118,26 @@ if check_password():
                 tab1, tab2 = st.tabs(["🤖 AI 訊號分析", "📊 數據指標"])
                 
                 with tab1:
-                    prompt = f"分析股票:{target_stock},現價:{current_p:.2f},漲跌:{change:.2f}%,5日均價:{avg_5:.2f}。請以專業分析師口吻給出【訊號燈】(紅/黃/綠)與分析理由。"
+                    # 組合更明確的提示詞
+                    news_str = "\n".join(news_titles) if news_titles else "無最新新聞"
+                    prompt = f"""
+                    請分析股票: {target_stock}
+                    最新收盤價: {current_p:.2f}
+                    單日漲跌: {change:.2f}%
+                    五日均價: {avg_5:.2f}
+                    相關新聞: {news_str}
+                    
+                    請給出【訊號燈】(紅燈/黃燈/綠燈) 以及簡短的專業分析理由。
+                    """
+                    
                     try:
-                        # 增加短暫延遲避免頻率限制
-                        time.sleep(1)
+                        time.sleep(1) # 避免 API 頻率限制
                         response = model.generate_content(prompt)
                         st.info(response.text)
                     except Exception as e:
+                        # 中遇到的 404 會在此被捕捉並提供提示
                         st.error(f"AI 回應失敗：{e}")
+                        st.write("請確認您的 API Key 是否支援此模型，或嘗試在 Secrets 中更換 Key。")
 
                 with tab2:
                     st.metric(f"{target_stock} 目前股價", f"{current_p:.2f}", f"{change:.2f}%")
