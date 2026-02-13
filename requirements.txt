@@ -1,6 +1,5 @@
 streamlit
 google-generativeai
-twstock
-yfinance
+FinMind
 pandas
-lxml
+yfinance
