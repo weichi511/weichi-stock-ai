@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 import yfinance as yf
 import pandas as pd
 import time
@@ -139,3 +139,4 @@ if check_password():
                         st.line_chart(df['Close'])
                         with st.expander("查看原始數據"):
                             st.dataframe(df.tail(10))
+
