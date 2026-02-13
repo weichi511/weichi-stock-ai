@@ -3,71 +3,89 @@ import google.generativeai as genai
 import yfinance as yf
 import pandas as pd
 from FinMind.data import DataLoader
-import time
+import os
 
-# --- 1. 頁面基本設定 ---
+# --- 1. 頁面設定 ---
 st.set_page_config(page_title="My AI Stock", layout="centered", page_icon="🚀")
 
-# --- 2. 數據抓取邏輯 ---
+# --- 2. 抓股價 ---
 @st.cache_data(ttl=600)
 def fetch_stock_data(ticker):
     try:
         is_tw = ticker.isdigit() or ".TW" in ticker.upper()
         clean_ticker = ticker.upper().replace(".TW", "")
-        
+
         if is_tw:
             dl = DataLoader()
-            # 修改 start_date 確保有歷史數據可以畫圖
             df = dl.taiwan_stock_daily(
                 stock_id=clean_ticker,
-                start_date='2025-07-01' 
+                start_date='2024-01-01'
             )
+
             if df is None or df.empty:
-                return None, []
-                
+                return None
+
             df = df.rename(columns={
-                'date': 'Date', 'close': 'Close', 'open': 'Open',
-                'max': 'High', 'min': 'Low', 'Trading_Volume': 'Volume'
+                'date': 'Date',
+                'close': 'Close',
+                'open': 'Open',
+                'max': 'High',
+                'min': 'Low',
+                'Trading_Volume': 'Volume'
             })
+
             df['Date'] = pd.to_datetime(df['Date'])
             df.set_index('Date', inplace=True)
+
         else:
             stock_yf = yf.Ticker(ticker)
             df = stock_yf.history(period="3mo")
-        
-        if df is None or df.empty:
-            return None, []
-            
-        return df, [] # 簡化新聞抓取以提高穩定性
-    except Exception as e:
-        return None, []
 
-# --- 3. 安全驗證 ---
+        if df is None or df.empty:
+            return None
+
+        return df
+
+    except Exception as e:
+        return None
+
+
+# --- 3. 密碼驗證 ---
 def check_password():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
+
     if not st.session_state["authenticated"]:
         st.title("🔒 身份驗證")
         pwd = st.text_input("請輸入密碼", type="password")
+
         if st.button("登入"):
-            if pwd == st.secrets["MY_APP_PWD"]: 
+            real_pwd = st.secrets.get("MY_APP_PWD", "")
+            if pwd == real_pwd:
                 st.session_state["authenticated"] = True
                 st.rerun()
             else:
                 st.error("密碼錯誤！")
+
         return False
     return True
 
-# --- 4. 主程式邏輯 ---
+
+# --- 4. 主程式 ---
 if check_password():
-    # --- AI 初始化 (簡化版) ---
+
+    # --- AI 初始化 ---
+    api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
+
+    if not api_key:
+        st.error("❌ 找不到 GEMINI_API_KEY，請確認 secrets 設定")
+        st.stop()
+
     try:
-        # 使用 strip() 確保不會讀到多餘的換行或空格
-        api_key = st.secrets["GEMINI_API_KEY"].strip()
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel("gemini-1.5-flash")
     except Exception as e:
-        st.error(f"AI 配置失敗: {e}")
+        st.error(f"❌ AI 初始化失敗: {e}")
         st.stop()
 
     st.title("🚀 私人 AI 股市助理")
@@ -76,25 +94,48 @@ if check_password():
     analyze_btn = st.button("開始分析", use_container_width=True)
 
     if analyze_btn:
-        with st.spinner('數據讀取與 AI 分析中...'):
-            df, _ = fetch_stock_data(target_stock)
 
-            if df is None or df.empty:
-                st.error(f"⚠️ 無法抓取 '{target_stock}' 的數據。")
-            else:
-                current_p = df['Close'].iloc[-1]
-                prev_p = df['Close'].iloc[-2]
-                change = ((current_p - prev_p) / prev_p) * 100
-                
-                # 顯示數據指標
-                st.metric(f"{target_stock} 目前股價", f"{current_p:.2f}", f"{change:.2f}%")
-                st.line_chart(df['Close'])
+        with st.spinner("數據讀取與 AI 分析中..."):
 
-                # AI 分析區
-                st.subheader("🤖 AI 訊號分析")
-                prompt = f"請分析股票:{target_stock}，目前價格 {current_p:.2f}。請給出投資建議燈號與理由。"
-                try:
-                    response = model.generate_content(prompt)
-                    st.info(response.text)
-                except Exception as e:
-                    st.error(f"AI 分析失敗，請檢查 API Key 權限。錯誤: {e}")
+            df = fetch_stock_data(target_stock)
+
+            if df is None or len(df) < 2:
+                st.error(f"⚠️ 無法抓取 '{target_stock}' 的數據")
+                st.stop()
+
+            current_p = df['Close'].iloc[-1]
+            prev_p = df['Close'].iloc[-2]
+            change = ((current_p - prev_p) / prev_p) * 100
+
+            # 顯示股價
+            st.metric(
+                f"{target_stock} 目前股價",
+                f"{current_p:.2f}",
+                f"{change:.2f}%"
+            )
+
+            st.line_chart(df['Close'])
+
+            # --- AI 分析 ---
+            st.subheader("🤖 AI 訊號分析")
+
+            prompt = f"""
+            你是一個台股專業量化分析師。
+            股票代號: {target_stock}
+            現價: {current_p:.2f}
+
+            請給我：
+            1. 趨勢判斷（多/空/震盪）
+            2. 操作建議（進場/續抱/減碼/觀望）
+            3. 風險提醒
+            請用繁體中文。
+            """
+
+            try:
+                response = model.generate_content(prompt)
+                result = response.text if response.text else "AI 無回應"
+                st.success(result)
+
+            except Exception as e:
+                st.error("❌ AI 分析失敗")
+                st.code(str(e))
