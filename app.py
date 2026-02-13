@@ -8,7 +8,7 @@ import time
 # --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="My AI Stock", layout="centered", page_icon="🚀")
 
-# --- 2. 數據抓取：整合 FinMind (台股) 與 yfinance (美股) ---
+# --- 2. 數據抓取：整合 FinMind (台股) ---
 @st.cache_data(ttl=600)
 def fetch_stock_data(ticker):
     try:
@@ -17,7 +17,7 @@ def fetch_stock_data(ticker):
         
         if is_tw:
             dl = DataLoader()
-            # 抓取台股數據
+            # 確保使用當前年份數據
             df = dl.taiwan_stock_daily(
                 stock_id=clean_ticker,
                 start_date='2026-01-01' 
@@ -70,31 +70,28 @@ def check_password():
 
 # --- 4. 主程式邏輯 ---
 if check_password():
-    # --- AI 模型配置與初始化 (解決 404 問題的終極方案) ---
+    # --- AI 模型配置與初始化 (解決 404 與 初始化失敗問題) ---
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         
-        # 定義多個可能的模型名稱
-        possible_models = ['gemini-1.5-flash', 'gemini-pro']
+        # 這裡不再依賴 list_models，改用直接暴力嘗試 (Brute Force)
         model = None
+        # 定義優先順序：Gemini 1.5 Flash 最快，Gemini Pro 最穩
+        targets = ['gemini-1.5-flash', 'models/gemini-1.5-flash', 'gemini-pro']
         
-        # 自動尋找目前環境支援的模型
-        available_models = [m.name for m in genai.list_models()]
-        
-        # 優先尋找 flash 1.5
-        for target in ['gemini-1.5-flash', 'models/gemini-1.5-flash', 'gemini-pro']:
-            # 檢查目標名稱是否在可用清單中 (或是直接嘗試初始化)
+        for name in targets:
             try:
-                model = genai.GenerativeModel(target)
-                # 測試性呼叫
-                model.generate_content("test", generation_config={"max_output_tokens": 1})
-                break
+                test_model = genai.GenerativeModel(name)
+                # 執行極小量測試呼叫，確認模型是否真的可用
+                test_model.generate_content("ping", generation_config={"max_output_tokens": 1})
+                model = test_model
+                break # 成功找到就跳出
             except:
-                model = None
                 continue
                 
         if model is None:
-            st.error("無法初始化 AI 模型。請確認 API Key 是否正確且具備權限。")
+            st.error("❌ 無法初始化任何 AI 模型。")
+            st.info("請檢查：1. API Key 是否正確 2. 您的 Google AI Studio 帳戶是否已啟用 3. 是否有區域限制。")
             st.stop()
             
     except Exception as e:
@@ -129,11 +126,13 @@ if check_password():
                     try:
                         time.sleep(1) # 避免 API 頻率限制
                         response = model.generate_content(prompt)
-                        st.info(response.text)
+                        if response.text:
+                            st.success("AI 分析完成")
+                            st.markdown(response.text)
+                        else:
+                            st.warning("AI 未能產出有效文字內容。")
                     except Exception as e:
-                        # 顯示更詳細的錯誤以便排除障礙
-                        st.error(f"AI 分析失敗：{e}")
-                        st.warning("提示：這可能是 API 區域限制或模型權限問題。")
+                        st.error(f"AI 回應失敗：{e}")
 
                 with tab2:
                     st.metric(f"{target_stock} 目前股價", f"{current_p:.2f}", f"{change:.2f}%")
