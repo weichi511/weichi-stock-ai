@@ -1,5 +1,6 @@
 streamlit
 google-generativeai
 twstock
-pandas
 yfinance
+pandas
+lxml
