@@ -5,20 +5,19 @@ import pandas as pd
 from FinMind.data import DataLoader
 import time
 
-# --- 1. 頁面基本設定 (必須在所有 st 語句最前面) ---
+# --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="My AI Stock", layout="centered", page_icon="🚀")
 
-# --- 2. 數據抓取：使用 FinMind (台股) 與 yfinance (美股) ---
+# --- 2. 數據抓取：整合 FinMind (台股) 與 yfinance (美股) ---
 @st.cache_data(ttl=600)
 def fetch_stock_data(ticker):
     try:
-        # 判斷是否為台股 (純數字或含 .TW)
         is_tw = ticker.isdigit() or ".TW" in ticker.upper()
         clean_ticker = ticker.upper().replace(".TW", "")
         
         if is_tw:
             dl = DataLoader()
-            # 抓取台股日成交資料
+            # 抓取 2026 年最新數據
             df = dl.taiwan_stock_daily(
                 stock_id=clean_ticker,
                 start_date='2026-01-01' 
@@ -27,7 +26,6 @@ def fetch_stock_data(ticker):
             if df is None or df.empty:
                 return None, []
                 
-            # 轉換格式以相容
             df = df.rename(columns={
                 'date': 'Date', 'close': 'Close', 'open': 'Open',
                 'max': 'High', 'min': 'Low', 'Trading_Volume': 'Volume'
@@ -35,14 +33,12 @@ def fetch_stock_data(ticker):
             df['Date'] = pd.to_datetime(df['Date'])
             df.set_index('Date', inplace=True)
         else:
-            # 非台股使用 yfinance
             stock_yf = yf.Ticker(ticker)
             df = stock_yf.history(period="3mo")
         
         if df is None or df.empty:
             return None, []
             
-        # 獲取新聞 (統一由 yfinance 抓取標題)
         news_titles = []
         try:
             news_ticker = clean_ticker + ".TW" if is_tw else ticker
@@ -74,15 +70,16 @@ def check_password():
 
 # --- 4. 主程式邏輯 ---
 if check_password():
+    # --- AI 模型配置與初始化 (修正 SyntaxError 與 404 問題) ---
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # 嘗試使用更完整的模型名稱，並加入安全處理
-try:
-    # 這裡將名稱改為 'models/gemini-1.5-flash' 有助於解決 404 找不到模型的問題
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
-except Exception:
-    # 備案名稱
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        
+        # 優先使用 models/ 前綴以避免 404
+        try:
+            model = genai.GenerativeModel('models/gemini-1.5-flash')
+        except:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            
     except Exception as e:
         st.error(f"AI 配置失敗: {e}")
         st.stop()
@@ -113,6 +110,8 @@ except Exception:
                 with tab1:
                     prompt = f"分析股票:{target_stock},現價:{current_p:.2f},漲跌:{change:.2f}%,5日均價:{avg_5:.2f}。請以專業分析師口吻給出【訊號燈】(紅/黃/綠)與分析理由。"
                     try:
+                        # 增加短暫延遲避免頻率限制
+                        time.sleep(1)
                         response = model.generate_content(prompt)
                         st.info(response.text)
                     except Exception as e:
@@ -121,4 +120,3 @@ except Exception:
                 with tab2:
                     st.metric(f"{target_stock} 目前股價", f"{current_p:.2f}", f"{change:.2f}%")
                     st.line_chart(df['Close'])
-
