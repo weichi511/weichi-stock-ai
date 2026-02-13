@@ -1,4 +1,5 @@
 streamlit
-google-genai
-yfinance>=0.2.40
+google-generativeai
+twstock
 pandas
+yfinance
