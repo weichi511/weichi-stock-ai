@@ -3,7 +3,6 @@ import google.generativeai as genai
 import yfinance as yf
 import pandas as pd
 from FinMind.data import DataLoader
-import os
 
 # --- 1. 頁面設定 ---
 st.set_page_config(page_title="My AI Stock", layout="centered", page_icon="🚀")
@@ -46,7 +45,7 @@ def fetch_stock_data(ticker):
 
         return df
 
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -75,7 +74,7 @@ def check_password():
 if check_password():
 
     # --- AI 初始化 ---
-    api_key = st.secrets.get("GEMINI_API_KEY", "").strip()
+    api_key = st.secrets.get("GEMINI_API_KEY", "")
 
     if not api_key:
         st.error("❌ 找不到 GEMINI_API_KEY，請確認 secrets 設定")
@@ -83,8 +82,7 @@ if check_password():
 
     try:
         genai.configure(api_key=api_key)
-        
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel("gemini-pro")  # ✅ 改成穩定版本
     except Exception as e:
         st.error(f"❌ AI 初始化失敗: {e}")
         st.stop()
@@ -121,23 +119,24 @@ if check_password():
             st.subheader("🤖 AI 訊號分析")
 
             prompt = f"""
-            你是一個台股專業量化分析師。
-            股票代號: {target_stock}
-            現價: {current_p:.2f}
+你是一個台股專業量化分析師。
 
-            請給我：
-            1. 趨勢判斷（多/空/震盪）
-            2. 操作建議（進場/續抱/減碼/觀望）
-            3. 風險提醒
-            請用繁體中文。
-            """
+股票代號: {target_stock}
+目前價格: {current_p:.2f}
+
+請提供：
+1. 趨勢判斷（多頭 / 空頭 / 震盪）
+2. 操作建議（進場 / 續抱 / 減碼 / 觀望）
+3. 風險提醒
+
+請用繁體中文回答。
+"""
 
             try:
                 response = model.generate_content(prompt)
-                result = response.text if response.text else "AI 無回應"
+                result = response.text if hasattr(response, "text") else "AI 無回應"
                 st.success(result)
 
             except Exception as e:
                 st.error("❌ AI 分析失敗")
                 st.code(str(e))
-
