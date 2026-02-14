@@ -83,7 +83,8 @@ if check_password():
 
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        model = genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
         st.error(f"❌ AI 初始化失敗: {e}")
         st.stop()
@@ -139,3 +140,4 @@ if check_password():
             except Exception as e:
                 st.error("❌ AI 分析失敗")
                 st.code(str(e))
+
